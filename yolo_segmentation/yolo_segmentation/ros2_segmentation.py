@@ -20,11 +20,14 @@ from tf_transformations import quaternion_from_euler
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from rclpy.duration import Duration
 
+from std_msgs.msg import Int8
+from sensor_msgs.msg import NavSatFix  
+
 # ========================== 파라미터(설정값) ==========================
-VIDEO_SAVE_DIR = '/media/marin/4cca4ad9-422b-4ad3-b582-3f9c402dd434/home/omo/videos/seg'
+VIDEO_SAVE_DIR = '경로/..'
 # 세그멘테이션 결과의 BEV 시각화 영상을 저장할 디렉토리 경로
 
-MODEL_PATH = '/home/marin/marine/src/yolo_segmentation/models/best.pt'
+MODEL_PATH = '패키지이름/src/yolo_segmentation/models/best.pt'
 # YOLO 세그멘테이션 가중치(.pt) 파일 경로
 
 CONF_THRESHOLD = 0.300
@@ -81,8 +84,6 @@ MAP_FRAME = 'odom'
 # OccupancyGrid가 속할 좌표 프레임 ID
 # =====================================================================
 
-from std_msgs.msg import Int8
-from sensor_msgs.msg import NavSatFix  # 픽셀 좌표를 NavSatFix로 받음
 
 class YoloSegmentationNode(Node):
     def __init__(self):
