@@ -1,3 +1,8 @@
+# 시스템 구성도 
+
+<img width="2010" height="1006" alt="image" src="https://github.com/user-attachments/assets/148f4dd3-d23a-4efb-924c-8e2f24e77fd2" />
+
+
 ========================================================
 
 # Segmentation
