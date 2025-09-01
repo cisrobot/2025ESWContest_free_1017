@@ -3,8 +3,6 @@
 <img width="2010" height="1006" alt="image" src="https://github.com/user-attachments/assets/148f4dd3-d23a-4efb-924c-8e2f24e77fd2" />
 
 
-========================================================
-
 # 경로
 
 ## nav2_custom
@@ -41,7 +39,6 @@ https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive
     MODEL_PATH = '경로/models/best.pt'
 
    
-========================================================
 
 ## Detection
 
@@ -59,4 +56,3 @@ https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive
 
     self.output_dir = '/경로/.../'
 
-========================================================
