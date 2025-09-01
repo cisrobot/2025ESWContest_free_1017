@@ -1,0 +1,40 @@
+#글로벌 
+ekf_filter_node_odom:
+  ros__parameters:
+    frequency: 20.0
+    two_d_mode: true
+    publish_acceleration: false
+    publish_tf: true
+    
+    map_frame: map
+    # map_frame: odom
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+    # world_frame: odom
+    debug: False
+
+    odom0: /genz/odometry
+    odom0_config: [true,  true,  false, # X,    Y,      Z
+                    false, false, false, # roll, pitch,  yaw
+                    false, false, false, # dX,   dY,     dZ
+                    false, false, false,  # droll,dpitch, dyaw
+                    false, false, false] # ddX,  ddY,    ddZ
+    odom0_nodelay: false
+    odom0_differential: false
+    odom0_relative: false
+    
+    imu0 : /mavros/imu/data
+    imu0_config: [false, false, false,
+                  true, true, true,
+                  false, false, false,
+                  true, true, true,
+                  true, true, true]
+    imu0_nodelay: false
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 7
+    imu0_pose_rejection_threshold: 0.8                
+    imu0_angular_velocity_rejection_threshold: 1.3              
+    imu0_linear_acceleration_rejection_threshold: 0.8  
+    imu0_remove_gravitational_acceleration: true  
