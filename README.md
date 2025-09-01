@@ -5,6 +5,12 @@
 
 ========================================================
 
+# genz_icp
+
+<<< /yolo_detect/yolo_detect/yolo_detect.py >>> 
+
+DeclareLaunchArgument("config_file", default_value="/home/marin/marine/src/genz_icp/ros/config/outdoor.yaml"),
+
 # Segmentation
 
 https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive_link
