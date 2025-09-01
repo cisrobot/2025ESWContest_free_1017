@@ -12,7 +12,7 @@ class VideoRecorderNode(Node):
         super().__init__('video_recorder_node')
 
         # 저장할 디렉토리
-        self.output_dir = '/media/marin/4cca4ad9-422b-4ad3-b582-3f9c402dd434/home/omo/videos/yolo'
+        self.output_dir = '/경로/.../'
         os.makedirs(self.output_dir, exist_ok=True)
 
         # 파일 이름에 타임스탬프 포함
