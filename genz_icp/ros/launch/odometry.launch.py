@@ -66,7 +66,7 @@ def generate_launch_description():
             DeclareLaunchArgument("convergence_criterion", default_value="0.0001"),
             DeclareLaunchArgument("initial_threshold", default_value="2.0"),
             DeclareLaunchArgument("min_motion_th", default_value="0.1"),
-            DeclareLaunchArgument("config_file", default_value="/home/marin/marine/src/genz_icp/ros/config/outdoor.yaml"),
+            DeclareLaunchArgument("config_file", default_value="/경로/src/genz_icp/ros/config/outdoor.yaml"),
             # ── GenZ-ICP 오도메트리 노드 실행 ───────────────────────────────
             Node(
                 package="genz_icp",
