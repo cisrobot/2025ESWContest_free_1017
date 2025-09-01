@@ -5,9 +5,9 @@
 
 ========================================================
 
-## 경로
+# 경로
 
-# nav2_custom
+## nav2_custom
 
 <</nav2_custom/launch/navigation_launch.py>>
 
@@ -16,20 +16,19 @@
         default_value='/경로/src/nav2_custom/params/nav2_params.yaml',
         description='Full path to the ROS2 parameters file to use for all launched nodes')
 
-# genz_icp
+## genz_icp
 
 <<< /genz_icp/ros/launch/odometry.launch.py >>> 
 
     DeclareLaunchArgument("config_file", default_value="/경로/src/genz_icp/ros/config/outdoor.yaml"),
 
-# Segmentation
+## Segmentation
 
 https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive_link
 
 1) 구글 링크에서 'best.pt' 파일 다운로드
 2) 'best.pt' 파일을 /yolo_segmentation/models 경로에 옮기기
 
-< 경로 수정 >
 
 <<< /yolo_segmentation/yolo_segmentation/ros2_segmentation.py >>> 
 
@@ -44,9 +43,8 @@ https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive
    
 ========================================================
 
-# Detection
+## Detection
 
-< 경로 수정 >
 
 <<< /yolo_detect/yolo_detect/yolo_detect.py >>> 
 
@@ -56,7 +54,6 @@ https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive
     
     self.log_file_path = os.path.join("/경로/yolo_detect", "scooter_location.txt")
 
-< 경로 수정 >
 
 <<< /yolo_detect/video_recorder.py >>> 
 
