@@ -3,7 +3,7 @@
 <img width="2010" height="1006" alt="image" src="https://github.com/user-attachments/assets/148f4dd3-d23a-4efb-924c-8e2f24e77fd2" />
 
 
-# 경로
+# 경로수정 및 모델 다운로드
 
 ## nav2_custom
 
