@@ -88,7 +88,7 @@ class YoloDetectorNode(Node):
         # ───────────────────────────────────────────────────────────────
         self.bridge = CvBridge()
         self.device = 0
-        self.model = YOLO('/home/marin/marine/src/yolo_detect/models/v11s.pt')
+        self.model = YOLO('/경로/yolo_detect/models/v11s.pt')
         self.tracker = Sort(max_age=60, min_hits=3, iou_threshold=0.20)
         self.detected_coords = {}
         self.gps_history = {}
@@ -131,7 +131,7 @@ class YoloDetectorNode(Node):
         # - fourcc='mp4v', fps=30.0, frame_size: (w,h)
         # ───────────────────────────────────────────────────────────────
         self.output_path = os.path.join(
-            "/media/marin/4cca4ad9-422b-4ad3-b582-3f9c402dd434/home/omo/videos/yolo", filename)
+            "/경로/", filename)
         self.video_writer = None
         self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.fps = 30.0
@@ -142,7 +142,7 @@ class YoloDetectorNode(Node):
         # - scooter_location.txt: 확정된 킥보드 좌표 및 이력 기록
         # - 최초 count: 0으로 기록 시작
         # ───────────────────────────────────────────────────────────────
-        self.log_file_path = os.path.join("/home/marin/marine/src/yolo_detect", "scooter_location.txt")
+        self.log_file_path = os.path.join("/경로/yolo_detect", "scooter_location.txt")
         with open(self.log_file_path, 'w') as f:
             f.write("count: 0\n")
 
