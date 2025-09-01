@@ -8,6 +8,7 @@ https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive
 /yolo_detect/yolo_detect/yolo_detect.py 
 
 < 경로 수정 >
+
 self.model = YOLO('/경로/yolo_detect/models/v11s.pt')
 
 self.output_path = os.path.join("/.../경로/", filename)
