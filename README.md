@@ -7,7 +7,7 @@
 
 # genz_icp
 
-<<< //genz_icp/ros/launch/odometry.launch.py >>> 
+<<< /genz_icp/ros/launch/odometry.launch.py >>> 
 
 DeclareLaunchArgument("config_file", default_value="/경로/src/genz_icp/ros/config/outdoor.yaml"),
 
