@@ -1,4 +1,6 @@
-#Segmentation
+========================================================
+
+# Segmentation
 
 https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive_link
 
@@ -17,7 +19,8 @@ MODEL_PATH = '경로/models/best.pt'
 
    
 ========================================================
-#Detection
+
+# Detection
 
 < 경로 수정 >
 
