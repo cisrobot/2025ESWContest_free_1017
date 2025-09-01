@@ -9,6 +9,11 @@
 
 <</nav2_custom/launch/navigation_launch.py>>
 
+    declare_params_file_cmd = DeclareLaunchArgument(
+        'params_file',
+        default_value='/경로/src/nav2_custom/params/nav2_params.yaml',
+        description='Full path to the ROS2 parameters file to use for all launched nodes')
+
 # genz_icp
 
 <<< /genz_icp/ros/launch/odometry.launch.py >>> 
