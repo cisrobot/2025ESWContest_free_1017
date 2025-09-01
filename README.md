@@ -7,9 +7,9 @@
 
 # genz_icp
 
-<<< /yolo_detect/yolo_detect/yolo_detect.py >>> 
+<<< //genz_icp/ros/launch/odometry.launch.py >>> 
 
-DeclareLaunchArgument("config_file", default_value="/home/marin/marine/src/genz_icp/ros/config/outdoor.yaml"),
+DeclareLaunchArgument("config_file", default_value="/경로/src/genz_icp/ros/config/outdoor.yaml"),
 
 # Segmentation
 
