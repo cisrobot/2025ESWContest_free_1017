@@ -4,6 +4,7 @@ https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive
 2) 'best.pt' 파일을 /yolo_segmentation/models 경로에 옮기기
    
 ========================================================
+
 < 경로 수정 >
 
 <<< /yolo_detect/yolo_detect/yolo_detect.py >>> 
