@@ -20,61 +20,46 @@ from tf_transformations import euler_from_quaternion
 
 
 def quat_to_yaw(q):
+    """Quaternion → yaw(rad)로 변환."""
     return euler_from_quaternion([q.x, q.y, q.z, q.w])[2]
 
 
 class AutoGoalPublisher(Node):
     """
-    요구사항 반영:
-    - 반원(샘플링 링) 중심을 항상 camera_link 위치(cx, cy)에 두고, 진행 방향 yaw는 base_link에서 취득.
-    - 샘플 free = (로컬 코스트맵 free) AND (sidewalk_mask_grid 내부).
-    - 경계 판단: 링 반경 R-ε(내측)는 인도 AND R+ε(외측)는 비인도 → 경계 접점으로 인정.
-    - 두 경계면: 중앙각, 한 경계면: 인도 폭 W로 중앙각 추정, 경계 없음: best free run 중앙.
-    - goal은 항상 인도 내부가 되도록 백오프/미세각 탐색으로 스냅.
-    - 지터 완화: 중심각 IIR(α) + 급격한 각 변화 제한.
+    인도 중심 주행을 위한 자동 goal 생성 노드.
+
+    핵심 아이디어:
+    - 반원 샘플링 링의 중심을 camera_link에 두고, base_link의 yaw를 진행 방향 기준으로 사용.
+    - '로컬 코스트맵의 free' AND '인도 마스크 내부'를 free로 간주.
+    - 링 반경 R에서 내측(R-ε)은 인도, 외측(R+ε)은 비인도이면 해당 각도를 '경계'로 인식.
+    - 두 경계가 있으면 중앙각, 한 쪽만 보이면 인도 폭 W로 중앙각 추정, 경계가 없으면 best free run 중앙각 선택.
+    - 선정된 center angle을 기반으로 goal을 계산하되, 인도 밖/장애물일 경우 반경 백오프/미세각 탐색으로 스냅.
+    - 중심각 IIR(α)과 최대 변화량 제한으로 각도 지터를 완화.
     """
 
     def __init__(self):
+        """파라미터 선언/로드, 구독·퍼블리셔·액션클라이언트·타이머 초기화."""
         super().__init__('auto_goal_publisher')
 
         # ---------------- Parameters ----------------
-        # 로컬 코스트맵 토픽 이름 (장애물/unknown 판단의 기반이 되는 OccupancyGrid)
         self.declare_parameter('costmap_topic', '/local_costmap/costmap')
-        # 인도 마스크 그리드 토픽 이름 (인도=0, 비인도=100로 표현된 OccupancyGrid)
         self.declare_parameter('sidewalk_mask_topic', '/sidewalk_mask_grid')  # 인도=0, 비인도=100
-        # 로봇 자세(yaw) 기준 프레임 (화살표 시작점); 일반적으로 base_link
         self.declare_parameter('base_frame', 'base_link')
-        # 반원(샘플링 링)의 중심을 둘 프레임; 요구사항상 camera_link 사용
         self.declare_parameter('ring_center_frame', 'camera_link')  # 반원 중심 프레임 (요구: camera_link)
-        # 목표 Pose의 좌표계를 강제로 지정하고 싶을 때 사용 (비우면 수신한 맵의 frame_id를 따름)
         self.declare_parameter('global_frame', '')  # 비우면 구독한 맵의 frame_id 사용
-        # 반원 샘플링 반경 R [m] (goal을 찍고자 하는 기본 거리)
-        self.declare_parameter('goal_radius', 2.5)  # 반원 반지름 R
-        # 인도 폭 가정값 W [m] (한쪽 경계만 보일 때 중앙각 추정에 사용)
-        self.declare_parameter('assumed_sidewalk_width', 3.65)  # 인도 폭 W (한쪽 경계 시 사용)
-        # 샘플링 각 범위 최소/최대 각도 [deg] (로봇 진행 방향 기준)
+        self.declare_parameter('goal_radius', 2.5)  # 반원 반지름 R [m]
+        self.declare_parameter('assumed_sidewalk_width', 3.65)  # 인도 폭 W [m] (한쪽 경계 시 사용)
         self.declare_parameter('angle_min_deg', -90.0)
         self.declare_parameter('angle_max_deg', 90.0)
-        # 각 샘플 간격 [deg] (작을수록 촘촘하지만 계산량 증가)
         self.declare_parameter('angle_step_deg', 2.0)
-        # goal 업데이트 주기 [s]
         self.declare_parameter('update_period', 0.5)
-        # OccupancyGrid에서 점유로 간주할 임계치(0~100). >= 이면 장애물로 판단
         self.declare_parameter('occupancy_threshold', 65)
-        # 로컬 코스트맵에서 unknown(-1)을 점유로 볼지 여부
-        self.declare_parameter('unknown_is_occupied', False)  # 로컬 코스트맵에서 unknown 취급
-        # 이전 goal과의 최소 이동거리 [m]; 이보다 작으면 재전송하지 않음(잡음 억제)
-        self.declare_parameter('min_goal_move', 0.30)
-        # goal의 yaw를 중심각(yaw+center_angle)으로 설정할지, 로봇 yaw 그대로 둘지 여부
+        self.declare_parameter('unknown_is_occupied', False)  # 로컬 코스트맵 unknown을 점유로 볼지
+        self.declare_parameter('min_goal_move', 0.30)  # 이전 goal 대비 최소 이동거리
         self.declare_parameter('yaw_from_center_angle', True)
-        # 경계 판별에 사용할 반경 여유 ε [m] (R-ε는 인도, R+ε는 비인도일 때 경계로 간주)
         self.declare_parameter('boundary_eps_m', 0.10)        # 경계 판별용 ε
-        # (선택) 글로벌 코스트맵 토픽; 존재하면 글로벌 장애물도 회피 판단에 반영
         self.declare_parameter('global_costmap_topic', '/global_costmap/costmap')
-        # 지터(진동) 완화 파라미터
-        #  - smooth_alpha: IIR 필터 계수(0~1, 클수록 최신 각 반영 비중이 큼)
-        self.declare_parameter('smooth_alpha', 0.6)           # IIR α (0~1, 높을수록 최신 반영 큼)
-        #  - max_center_step_deg: 한 주기에서 중심각이 변할 수 있는 최대 변화량 [deg]
+        self.declare_parameter('smooth_alpha', 0.6)           # IIR α
         self.declare_parameter('max_center_step_deg', 12.0)   # 한 주기 최대 각 변화 제한
 
         # 파라미터 로드
@@ -101,9 +86,9 @@ class AutoGoalPublisher(Node):
         self.alpha = float(self.get_parameter('smooth_alpha').value)
         self.max_step = math.radians(float(self.get_parameter('max_center_step_deg').value))
 
-        # TF
+        # TF 버퍼/리스너
         self.tf_buffer = Buffer()
-               self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer, self)  # ← 들여쓰기 보정
 
         # Subscribers
         qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=1)
@@ -111,10 +96,10 @@ class AutoGoalPublisher(Node):
         self.mask_sub = self.create_subscription(OccupancyGrid, self.sidewalk_mask_topic, self.mask_cb, qos)
         self.global_costmap_sub = self.create_subscription(OccupancyGrid, self.global_costmap_topic, self.global_costmap_cb, qos)
 
-        # Action Client
+        # Action Client (Nav2 navigate_to_pose)
         self.nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
 
-        # Publishers (Markers)
+        # Publishers (Markers/Plan)
         self.marker_pub = self.create_publisher(MarkerArray, '/auto_goal_markers', 10)
         self.plan_end_marker_pub = self.create_publisher(Marker, '/plan_end_marker', 1)
         self.plan_sub = self.create_subscription(Path, '/plan', self.plan_cb, 10)
@@ -139,6 +124,7 @@ class AutoGoalPublisher(Node):
 
     # ---------------- Callbacks ----------------
     def plan_cb(self, msg: Path):
+        """현재 Nav2 계획 경로의 마지막 지점을 큐브 마커로 표시."""
         if not msg.poses or not self.global_frame:
             return
         p = msg.poses[-1].pose.position
@@ -157,26 +143,30 @@ class AutoGoalPublisher(Node):
         self.plan_end_marker_pub.publish(m)
 
     def costmap_cb(self, msg: OccupancyGrid):
+        """로컬 코스트맵 수신 및 frame_id 설정."""
         self.latest_costmap = msg
         if not self.global_frame:
             self.global_frame = self.global_frame_param if self.global_frame_param else msg.header.frame_id
 
     def mask_cb(self, msg: OccupancyGrid):
+        """인도 마스크 그리드 수신 및 frame_id 설정."""
         self.latest_maskmap = msg
         if not self.global_frame:
             self.global_frame = self.global_frame_param if self.global_frame_param else msg.header.frame_id
 
     def global_costmap_cb(self, msg: OccupancyGrid):
+        """글로벌 코스트맵 수신(있으면 추가 충돌 판정에 반영)."""
         self.latest_global_costmap = msg
 
     # ---------------- Main loop ----------------
     def on_timer(self):
+        """주기적으로 샘플링 → 중심각 선택 → goal 후보 계산 → 스냅/보정 → 전송/마커 표시."""
         if self.latest_costmap is None or self.latest_maskmap is None or self.global_frame is None:
             return
         if not self.nav_client.server_is_ready():
             return
 
-        # yaw 및 로봇 기준(화살표 시작점)은 base_frame에서 취득
+        # yaw 및 진행 방향 기준은 base_link에서 취득
         try:
             tf_base = self.tf_buffer.lookup_transform(self.global_frame, self.base_frame, rclpy.time.Time())
         except TransformException as ex:
@@ -186,42 +176,42 @@ class AutoGoalPublisher(Node):
         by = tf_base.transform.translation.y
         yaw = quat_to_yaw(tf_base.transform.rotation)
 
-        # 반원 중심은 camera_link(혹은 설정된 ring_center_frame)로부터 취득
+        # 반원 중심은 camera_link(요구사항)에서 취득 (실패 시 base_link 폴백)
         try:
             tf_center = self.tf_buffer.lookup_transform(self.global_frame, self.center_frame, rclpy.time.Time())
             cx = tf_center.transform.translation.x
             cy = tf_center.transform.translation.y
         except TransformException as ex:
-            # 실패 시 base_frame 좌표를 사용 (폴백)
             self.get_logger().warn(f"TF lookup failed {self.global_frame}->{self.center_frame}: {ex} (fallback to {self.base_frame})")
             cx, cy = bx, by
 
-        # 샘플링 (+ 경계 플래그)
+        # 링 샘플링 및 경계 플래그 계산
         angles, world_pts, occupied, boundary = self.sample_circle(cx, cy, yaw)
 
-        # 접점 조건을 반영한 중앙각 선택
+        # free-run들 중 규칙에 따라 중심각 선택
         center_ang_raw, run_a, run_b = self.pick_center_angle_from_free_runs(angles, occupied, boundary)
 
-        # 지터 완화(IIR + 급변 제한)
+        # 중심각 지터 완화
         center_ang = self.smooth_center_angle(center_ang_raw)
 
-        # goal 후보 (반원 중심 기준)
+        # goal 후보 계산 (반경 R, 선택 중심각)
         gx = cx + self.R * math.cos(yaw + center_ang)
         gy = cy + self.R * math.sin(yaw + center_ang)
 
-        # 인도 밖/장애물이면 인도 안으로 스냅
+        # 인도 밖/장애물인 경우 백오프/미세각 탐색으로 스냅
         gx, gy = self.backoff_if_occupied_or_offsidewalk(cx, cy, yaw, center_ang, gx, gy)
 
+        # goal yaw 설정
         gyaw = yaw + center_ang if self.yaw_from_center_angle else yaw
 
-        # 변화량이 충분할 때만 전송
+        # 과도한 재전송 방지(변화량 기준)
         if not self.should_send((gx, gy, gyaw)):
             self.publish_markers(bx, by, cx, cy, yaw, angles, world_pts,
                                  [self.is_occupied_local(x, y) or (not self.on_sidewalk(x, y)) for (x, y) in world_pts],
                                  boundary, (gx, gy), free_run=(run_a, run_b))
             return
 
-        # PoseStamped 전송
+        # PoseStamped 생성 및 Nav2 goal 전송
         goal = PoseStamped()
         goal.header.frame_id = self.global_frame
         goal.header.stamp = self.get_clock().now().to_msg()
@@ -244,6 +234,7 @@ class AutoGoalPublisher(Node):
 
     # ---------------- Geometry / Logic ----------------
     def is_occupied_in(self, costmap: OccupancyGrid, x, y, unknown_is_occ: bool):
+        """특정 OccupancyGrid에서 (x,y)가 점유인지 판정. unknown 처리정책 포함."""
         res = costmap.info.resolution
         ox = costmap.info.origin.position.x
         oy = costmap.info.origin.position.y
@@ -258,29 +249,31 @@ class AutoGoalPublisher(Node):
         return True  # 맵 밖은 위험 취급
 
     def is_occupied_local(self, x, y):
+        """로컬 코스트맵 기준 점유 여부."""
         return self.is_occupied_in(self.latest_costmap, x, y, unknown_is_occ=self.unknown_occ)
 
     def on_sidewalk(self, x, y):
-        # sidewalk_mask_grid: 인도=0, 비인도=100
+        """인도 마스크 그리드 기준 인도(0) 여부."""
         return not self.is_occupied_in(self.latest_maskmap, x, y, unknown_is_occ=True)
 
     def is_occupied_global(self, x, y):
+        """글로벌 코스트맵이 있으면 추가 충돌 판정, 없으면 False."""
         if self.latest_global_costmap is None:
             return False
         return self.is_occupied_in(self.latest_global_costmap, x, y, unknown_is_occ=True)
 
     def sample_circle(self, cx, cy, yaw):
         """
-        반지름 R에서 각도별 샘플(반원 중심 = (cx, cy)).
-        occupied = (로컬장애물) OR (sidewalk 바깥)
-        boundary[i] = on_sw(R-ε)=True AND on_sw(R+ε)=False
+        반경 R에서 [ang_min, ang_max] 각도로 링 샘플링.
+        - occupied[i] = (로컬장애물) OR (인도 바깥)
+        - boundary[i] = 내측(R-ε)은 인도 AND 외측(R+ε)은 비인도 → 경계 True
         """
         angles = np.arange(self.ang_min, self.ang_max + 1e-6, self.ang_step)
         world_pts, occupied, boundary = [], [], []
         eps = self.boundary_eps
 
         for a in angles:
-            # 링 위의 점
+            # 링 위 샘플점
             wx = cx + self.R * math.cos(yaw + a)
             wy = cy + self.R * math.sin(yaw + a)
             world_pts.append((wx, wy))
@@ -289,7 +282,7 @@ class AutoGoalPublisher(Node):
             on_sw = self.on_sidewalk(wx, wy)
             occupied.append(occ_local or (not on_sw))
 
-            # 경계 판별: 내측은 인도, 외측은 비인도일 때 '경계'
+            # 경계 판별(내측 인도 & 외측 비인도)
             rin = max(0.4, self.R - eps)
             rout = self.R + eps
             wx_in = cx + rin * math.cos(yaw + a); wy_in = cy + rin * math.sin(yaw + a)
@@ -300,10 +293,12 @@ class AutoGoalPublisher(Node):
 
     def pick_center_angle_from_free_runs(self, angles, occupied, boundary):
         """
-        free run의 양 끝이 '마스크 경계'일 때 최우선.
-        - 두 경계면: 중앙각 = (θ_left + θ_right)/2
-        - 한 경계면: 중앙각 = θ_edge ± Δθ/2  (Δθ = 2 asin(W/(2R)))
-        - 없으면: run 중앙각
+        free run들 중 규칙에 따라 중심각 선택.
+        우선순위:
+          1) run의 양끝이 '마스크 경계'인 경우 최우선 → 중앙각.
+          2) 한쪽만 경계인 경우 → 인도 폭 W로 기대되는 호 길이(Δθ=2asin(W/2R)) 기반 보정.
+          3) 경계가 전혀 없으면 → run의 중앙각.
+        반환: (선택각, run 시작 인덱스, run 끝 인덱스)
         """
         free = [not o for o in occupied]
         runs = []
@@ -322,6 +317,7 @@ class AutoGoalPublisher(Node):
         expected = 2.0 * math.asin(ratio)
 
         def edge_score(a, b):
+            """run[a:b]가 폭 기대치에 얼마나 근접한지 + 경계 보너스로 스코어링."""
             both = boundary[a] and boundary[b]
             one  = (boundary[a] != boundary[b]) and (boundary[a] or boundary[b])
             width = float(angles[b] - angles[a])
@@ -356,10 +352,15 @@ class AutoGoalPublisher(Node):
         return angles[mid_idx], a, b
 
     def _clamp_angle(self, ang):
+        """선택각을 허용 각 범위[ang_min, ang_max]로 클램핑."""
         return max(self.ang_min, min(self.ang_max, ang))
 
     def smooth_center_angle(self, center_ang_raw):
-        """IIR + 급변 제한으로 중심각 안정화"""
+        """
+        중심각 지터 완화(IIR + 급변 제한).
+        - max_step으로 급격한 변화 제한
+        - α 계수로 IIR 필터 적용
+        """
         if self.last_center_ang is None:
             self.last_center_ang = float(center_ang_raw)
             return center_ang_raw
@@ -371,12 +372,16 @@ class AutoGoalPublisher(Node):
 
         # IIR
         smoothed = (1.0 - self.alpha) * self.last_center_ang + self.alpha * center_ang_raw
-        # wrap, 저장
         smoothed = self._wrap_to_pi(smoothed)
         self.last_center_ang = float(smoothed)
         return smoothed
 
     def backoff_if_occupied_or_offsidewalk(self, cx, cy, yaw, center_ang, gx, gy):
+        """
+        goal 후보가 인도 밖이거나 점유(로컬/글로벌)일 경우,
+        - 반경을 줄이며 스냅,
+        - 그래도 안 되면 ±10° 범위에서 미세각 탐색 + 반경 백오프로 스냅.
+        """
         def blocked(xx, yy):
             if not self.on_sidewalk(xx, yy):
                 return True
@@ -412,6 +417,11 @@ class AutoGoalPublisher(Node):
         return gx, gy
 
     def should_send(self, new_xyyaw):
+        """
+        goal 재전송 여부 판단.
+        - 위치 변화가 min_goal_move 초과거나
+        - yaw 변화가 10° 초과면 전송.
+        """
         if self.last_goal_xyyaw is None:
             return True
         dx = new_xyyaw[0] - self.last_goal_xyyaw[0]
@@ -425,6 +435,7 @@ class AutoGoalPublisher(Node):
 
     @staticmethod
     def _wrap_to_pi(a):
+        """각도를 [-π, π] 범위로 래핑."""
         while a > math.pi:
             a -= 2.0 * math.pi
         while a < -math.pi:
@@ -433,16 +444,22 @@ class AutoGoalPublisher(Node):
 
     @staticmethod
     def _sign(x):
+        """부호 함수(+1 또는 -1)."""
         return 1.0 if x >= 0.0 else -1.0
 
     # ---------------- Visualization ----------------
     def publish_markers(self, bx, by, cx, cy, yaw, angles, world_pts, occ_or_off, boundary, goal_xy, free_run=None):
+        """
+        디버깅/가시화를 위한 마커 퍼블리시:
+        - 반원 중심(청록), 샘플 포인트(노랑/빨강), 경계(초록),
+        - 선택된 free run 양끝(초록), goal(파랑), base→goal 화살표(파랑).
+        """
         if self.global_frame is None:
             return
         now = self.get_clock().now().to_msg()
         arr = MarkerArray()
 
-        # 0) 반원 중심 마커(청록)
+        # 0) 반원 중심 마커
         m_center = Marker()
         m_center.header.frame_id = self.global_frame
         m_center.header.stamp = now
@@ -457,7 +474,7 @@ class AutoGoalPublisher(Node):
         m_center.color.r, m_center.color.g, m_center.color.b, m_center.color.a = 0.0, 0.8, 0.8, 0.9
         arr.markers.append(m_center)
 
-        # 1) 샘플 포인트 (노랑=free, 빨강=occupied or off-mask)
+        # 1) 샘플 포인트
         for i, (wx, wy) in enumerate(world_pts):
             m = Marker()
             m.header.frame_id = self.global_frame
@@ -476,7 +493,7 @@ class AutoGoalPublisher(Node):
                 m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 1.0, 0.0, 0.9
             arr.markers.append(m)
 
-        # 2) 경계 접점 마커 (초록)
+        # 2) 경계 접점 마커
         for i, is_b in enumerate(boundary):
             if not is_b:
                 continue
@@ -495,7 +512,7 @@ class AutoGoalPublisher(Node):
             m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 1.0, 0.2, 0.95
             arr.markers.append(m)
 
-        # free run 경계 마커(선택된 run의 양끝)
+        # free run 경계 마커(선택 run의 양끝)
         if free_run is not None and free_run[0] is not None and free_run[1] is not None:
             a, b = free_run
             for run_tag, run_idx, mid in (('run_start', a, 2100), ('run_end', b, 2101)):
@@ -514,7 +531,7 @@ class AutoGoalPublisher(Node):
                 m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 1.0, 0.2, 0.9
                 arr.markers.append(m)
 
-        # 3) goal 마커 (파랑) + base_link->goal 화살표
+        # 3) goal 마커 + base_link→goal 화살표
         gx, gy = goal_xy
         m_goal = Marker()
         m_goal.header.frame_id = self.global_frame
@@ -527,7 +544,7 @@ class AutoGoalPublisher(Node):
         m_goal.pose.position.y = float(gy)
         m_goal.pose.position.z = 0.05
         m_goal.scale.x = 0.22; m_goal.scale.y = 0.22; m_goal.scale.z = 0.22
-        m_goal.color.r, m_goal.color.g, m_goal.color.b, m_goal.color.a = 0.2, 0.6, 1.0, 1.0
+        m_goal.color.r, m_goal.g, m_goal.b, m_goal.a = 0.2, 0.6, 1.0, 1.0
         arr.markers.append(m_goal)
 
         m_arrow = Marker()
@@ -538,7 +555,7 @@ class AutoGoalPublisher(Node):
         m_arrow.type = Marker.ARROW
         m_arrow.action = Marker.ADD
         m_arrow.scale.x = 0.05; m_arrow.scale.y = 0.1; m_arrow.scale.z = 0.1
-        m_arrow.color.r, m_arrow.color.g, m_arrow.color.b, m_arrow.color.a = 0.2, 0.6, 1.0, 1.0
+        m_arrow.color.r, m_arrow.g, m_arrow.b, m_arrow.a = 0.2, 0.6, 1.0, 1.0
         m_arrow.points = [Point(x=float(bx), y=float(by), z=0.05),
                           Point(x=float(gx), y=float(gy), z=0.05)]
         arr.markers.append(m_arrow)
@@ -547,6 +564,7 @@ class AutoGoalPublisher(Node):
 
 
 def main(args=None):
+    """rclpy 초기화 및 노드 스핀."""
     rclpy.init(args=args)
     node = AutoGoalPublisher()
     try:
