@@ -60,6 +60,7 @@ GPS 기반 정밀 위치 기록 및 클라우드 연동
 (배포시 무효화 문제로 데이터 통신의 중지를 유발)
 
 <<< /patrol_nodes/patrol_nodes/firestore_bridge.py >>>
+
     cred = credentials.Certificate(
                     '/경로/src/patrol_nodes/patrol_nodes/json 키'
                 )
