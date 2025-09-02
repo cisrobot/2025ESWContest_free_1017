@@ -34,7 +34,8 @@ GPS 기반 정밀 위치 기록 및 클라우드 연동
 
 # 시스템 구성도 
 
-<img width="2010" height="1006" alt="image" src="https://github.com/user-attachments/assets/148f4dd3-d23a-4efb-924c-8e2f24e77fd2" />
+<img width="4199" height="2101" alt="시스템계도" src="https://github.com/user-attachments/assets/0502430e-1982-459b-9176-ca7e0a65b8ce" />
+
 
 
 # 참고사항
