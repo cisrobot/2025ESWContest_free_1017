@@ -27,7 +27,7 @@ from sensor_msgs.msg import NavSatFix
 VIDEO_SAVE_DIR = '경로/..'  # 세그멘테이션 BEV 시각화 영상 저장 디렉토리
 MODEL_PATH = '패키지이름/src/yolo_segmentation/models/best.pt'  # YOLO 세그 가중치
 
-CONF_THRESHOLD = 0.300      # YOLO 신뢰도 임계값
+CONF_THRESHOLD = 0.650      # YOLO 신뢰도 임계값
 IMG_SIZE = 640              # YOLO 입력 크기
 SIDEWALK_CLASS_ID = 0       # 인도 클래스 라벨 ID
 
