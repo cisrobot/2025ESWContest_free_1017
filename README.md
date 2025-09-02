@@ -54,6 +54,15 @@ GPS 기반 정밀 위치 기록 및 클라우드 연동
 
     DeclareLaunchArgument("config_file", default_value="/경로/src/genz_icp/ros/config/outdoor.yaml"),
 
+## patrol_node
+
+전용 어플리케이션 보안상의 이유로 json 유형의 파일은 따로 올리지 않았습니다. 
+(배포시 무효화 문제로 데이터 통신의 중지를 유발)
+
+<<< /patrol_nodes/patrol_nodes/firestore_bridge.py >>>
+    cred = credentials.Certificate(
+                    '/경로/src/patrol_nodes/patrol_nodes/json 키'
+                )
 ## Segmentation
 
 https://drive.google.com/file/d/1ajlTMQ3bdAtJHEt_Bup_Fybq22QRtYD1/view?usp=drive_link
