@@ -54,7 +54,11 @@ GPS 기반 정밀 위치 기록 및 클라우드 연동
 
     DeclareLaunchArgument("config_file", default_value="/경로/src/genz_icp/ros/config/outdoor.yaml"),
 
-## patrol_node
+## patrol_node 및 어플리케이션 
+
+https://drive.google.com/drive/folders/1uiPkflgV0PRxBid_hfVP_zrW5x1P8wu2?usp=drive_link 
+
+1) 구글링크에서 어플리케이션 코드 다운로드
 
 전용 어플리케이션 보안상의 이유로 json 유형의 파일은 따로 올리지 않았습니다. 
 (배포시 무효화 문제로 데이터 통신의 중지를 유발)
